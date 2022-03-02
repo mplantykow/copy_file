@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cerrno>
 #include <filesystem>
+#include <string>
+#include "md5imp.h"
 
 #define SUCCESS 0
 
@@ -44,6 +46,14 @@ int main(int argc, char *argv[])
 	out.write(buffer, in.gcount());
 	in.close();
 	out.close();
+
+	std::string inmd5 = md5_from_file(argv[1]);
+	std::string outmd5 = md5_from_file(argv[2]);
+
+	if (inmd5.compare(outmd5) != 0) {
+		remove(argv[2]);
+		return EIO;
+	}
 
 	auto t_end = Time::now();
 	fsec t_elapsed = t_end - t_start;
