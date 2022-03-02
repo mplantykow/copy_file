@@ -2,11 +2,14 @@
 #include <fstream>
 #include <chrono>
 #include <cerrno>
+#include <filesystem>
 
 #define SUCCESS 0
 
 int main(int argc, char *argv[])
 {
+	typedef std::chrono::high_resolution_clock Time;
+	typedef std::chrono::duration<float> fsec;
 	static constexpr std::size_t buff_size{4096};
 	char buffer[buff_size];
 
@@ -32,6 +35,8 @@ int main(int argc, char *argv[])
 		return EPERM;
 	}
 
+	auto t_start = Time::now();
+
 	while (in.read(buffer, buff_size)) {
 		out.write(buffer, buff_size);
 	}
@@ -39,6 +44,12 @@ int main(int argc, char *argv[])
 	out.write(buffer, in.gcount());
 	in.close();
 	out.close();
+
+	auto t_end = Time::now();
+	fsec t_elapsed = t_end - t_start;
+	float speed = std::filesystem::file_size(argv[1])/t_elapsed.count();
+
+	std::cout << "Average data transfer rate: " << speed << "B/s\n";
 
 	return SUCCESS;
 }
