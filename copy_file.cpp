@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 	char buffer[buff_size];
 
 	if (argc != 3) {
-		std::cout << "usage: copy_file <src-file> <dest-file>\n";
+		std::cout << "usage: copy_file <src-file> <dest-file>" << std::endl;
 		return EINVAL;
 	}
 
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 	std::ofstream out{argv[2]};
 
 	if (!out.is_open()) {
-		std::cout << "Could not create output file\n";
+		std::cout << "Could not create output file" << std::endl;
 		in.close();
 		return EPERM;
 	}
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 	fsec t_elapsed = t_end - t_start;
 	float speed = std::filesystem::file_size(argv[1])/t_elapsed.count();
 
-	std::cout << "Average data transfer rate: " << speed << "B/s\n";
+	std::cout << "Average data transfer rate: " << speed << "B/s" << std::endl;
 
 	return SUCCESS;
 }
