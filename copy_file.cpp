@@ -6,6 +6,8 @@
 #include <string>
 #include "md5imp.h"
 #include <queue>
+#include <thread>
+#include <mutex>
 
 #define SUCCESS 0
 
@@ -28,6 +30,7 @@ Descriptor::Descriptor(char p[BUFF_SIZE], int size, bool last)
 }
 
 std::queue<Descriptor> queue;
+std::mutex queue_mtx;
 
 void file_read(std::ifstream* in)
 {
@@ -36,7 +39,9 @@ void file_read(std::ifstream* in)
 		in->read(data, BUFF_SIZE);
 		int size = in->gcount();
 		bool last = !*in;
+		queue_mtx.lock();
 		queue.emplace(data, size, last);
+		queue_mtx.unlock();
 	} while(*in);
 }
 
@@ -44,12 +49,16 @@ void file_write(std::ofstream* out)
 {
 	bool last = false;
 	do {
+		queue_mtx.lock();
 		bool is_empty = queue.empty();
+		queue_mtx.unlock();
 		if (!is_empty) {
 			Descriptor pwrite = queue.front();
 			last = pwrite.last;
 			out->write(pwrite.data, pwrite.size);
+			queue_mtx.lock();
 			queue.pop();
+			queue_mtx.unlock();
 		}
 	} while (!last);
 }
@@ -83,8 +92,11 @@ int main(int argc, char *argv[])
 
 	auto t_start = Time::now();
 
-	file_read(&in);
-	file_write(&out);
+	std::thread th1 (file_read, &in);
+	std::thread th2 (file_write, &out);
+
+	th1.join();
+	th2.join();
 
 	auto t_end = Time::now();
 
