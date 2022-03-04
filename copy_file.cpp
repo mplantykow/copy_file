@@ -44,6 +44,9 @@ int main(int argc, char *argv[])
 	}
 
 	out.write(buffer, in.gcount());
+
+	auto t_end = Time::now();
+
 	in.close();
 	out.close();
 
@@ -55,11 +58,11 @@ int main(int argc, char *argv[])
 		return EIO;
 	}
 
-	auto t_end = Time::now();
 	fsec t_elapsed = t_end - t_start;
 	float speed = std::filesystem::file_size(argv[1])/t_elapsed.count();
+	float speedMiB = speed / (1024*1024);
 
-	std::cout << "Average data transfer rate: " << speed << "B/s" << std::endl;
+	std::cout << "Average data transfer rate: " << speedMiB << "MiB/s" << std::endl;
 
 	return SUCCESS;
 }
