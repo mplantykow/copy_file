@@ -8,40 +8,69 @@
 #include <queue>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 
 #define SUCCESS 0
-
+#define NUM_BUFF 8
 #define BUFF_SIZE 4096
 
 class Descriptor
 {
 	public:
-		char data[BUFF_SIZE];
-		int size;
-		bool last;
-		Descriptor(char p[BUFF_SIZE], int size, bool last);
+		Descriptor(char* data, int size, bool last);
+		Descriptor(const Descriptor& other);
+		Descriptor(Descriptor&& other);
+
+		std::vector<char> getVector() const;
+		bool getIsLast() const;
+
+	private:
+		std::vector<char> vector;
+		bool isLast;
 };
 
-Descriptor::Descriptor(char p[BUFF_SIZE], int size, bool last)
+Descriptor::Descriptor(char* data, int size, bool last) : vector(data, data + size), isLast(last)
 {
-	memcpy(this->data, p, BUFF_SIZE);
-	this->size = size;
-	this->last = last;
 }
 
+Descriptor::Descriptor(const Descriptor& other)
+{
+	this->vector = other.vector;
+	this->isLast = other.isLast;
+}
+
+Descriptor::Descriptor(Descriptor&& other) : vector(std::move(other.vector)), isLast(std::move(other.isLast))
+{
+}
+
+std::vector<char> Descriptor::getVector() const
+{
+	return this->vector;
+}
+
+bool Descriptor::getIsLast() const
+{
+	return this->isLast;
+}
+
+std::condition_variable queue_not_empty;
+std::condition_variable queue_not_full;
 std::queue<Descriptor> queue;
 std::mutex queue_mtx;
 
 void file_read(std::ifstream* in)
 {
+	char data[BUFF_SIZE];
 	do{
-		char data[BUFF_SIZE];
 		in->read(data, BUFF_SIZE);
-		int size = in->gcount();
-		bool last = !*in;
-		queue_mtx.lock();
-		queue.emplace(data, size, last);
-		queue_mtx.unlock();
+		Descriptor desc(data, in->gcount(), !*in);
+		/* unique_lock is used as the waiting thread must
+		 * unlock the mutex when it is waiting */
+		std::unique_lock<std::mutex> lk(queue_mtx);
+		queue_not_full.wait(lk,[]{return queue.size() < NUM_BUFF;});
+		queue.push(std::move(desc));
+		queue_not_empty.notify_one();
+		lk.unlock();
 	} while(*in);
 }
 
@@ -49,17 +78,15 @@ void file_write(std::ofstream* out)
 {
 	bool last = false;
 	do {
-		queue_mtx.lock();
-		bool is_empty = queue.empty();
-		queue_mtx.unlock();
-		if (!is_empty) {
-			Descriptor pwrite = queue.front();
-			last = pwrite.last;
-			out->write(pwrite.data, pwrite.size);
-			queue_mtx.lock();
-			queue.pop();
-			queue_mtx.unlock();
-		}
+
+		std::unique_lock<std::mutex> lk(queue_mtx);
+		queue_not_empty.wait(lk,[]{return !queue.empty();});
+		Descriptor desc_write = queue.front();
+		queue.pop();
+		queue_not_full.notify_one();
+		lk.unlock();
+		last = desc_write.getIsLast();
+		out->write(desc_write.getVector().data(), desc_write.getVector().size());
 	} while (!last);
 }
 
